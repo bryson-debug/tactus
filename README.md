@@ -81,15 +81,17 @@ never breaks the others.
 
 The MRR card combines two very different calculations:
 
-- **Stripe (exact)** — matches Stripe **products by name** (`EDGE_PRODUCT_NAME`
-  env var, defaults to `"EDGE"`), looks up every active recurring price under
-  those products, lists active subscriptions per price, and sums each item's
-  amount normalized to monthly (an annual price is divided by 12, etc.).
-  Because matching is by product name rather than a hardcoded price ID, a new
-  price added under the same EDGE product later (a price change, a new
-  annual option) is picked up automatically on the next dashboard load — no
-  code change needed. If the product's actual name in Stripe isn't literally
-  "EDGE", set `EDGE_PRODUCT_NAME` to match.
+- **Stripe (exact)** — matches Stripe products either by **exact Product ID**
+  (`STRIPE_EDGE_PRODUCT_IDS`, comma-separated `prod_...` IDs — use this when
+  the product's name isn't a reliable match, e.g. it doesn't contain "EDGE"
+  at all) or by **name** (`EDGE_PRODUCT_NAME`, defaults to `"EDGE"`, checked
+  in addition to any pinned IDs). Whichever products match, it looks up
+  every active recurring price under them, lists active subscriptions per
+  price, and sums each item's amount normalized to monthly (an annual price
+  is divided by 12, etc.). Because a *product* is matched rather than a
+  fixed price, a new price added under that same product later (a price
+  change, a new annual option) is picked up automatically on the next
+  dashboard load — no code change needed, even when pinning by ID.
 - **PayPal (approximate)** — PayPal's Subscriptions API has no bulk
   "list subscriptions" endpoint (confirmed against PayPal's official OpenAPI
   spec — only get-one-by-ID exists), so there's no way to sum active

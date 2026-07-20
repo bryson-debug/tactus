@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeToMonthlyCents } = require('../lib/stripe-client');
+const { normalizeToMonthlyCents, productMatches } = require('../lib/stripe-client');
 const { matchesEdge } = require('../lib/paypal-client');
 
 test('normalizeToMonthlyCents: monthly price passes through unchanged', () => {
@@ -40,4 +40,19 @@ test('matchesEdge: returns false when nothing matches', () => {
 
 test('matchesEdge: returns false when transaction_info fields are absent', () => {
   assert.equal(matchesEdge({ transaction_info: {} }, 'EDGE'), false);
+});
+
+test('productMatches: matches by pinned exact product ID even when the name is unrelated', () => {
+  const product = { id: 'prod_ABC123', name: 'Some Unrelated Name' };
+  assert.equal(productMatches(product, { matchName: 'EDGE', productIds: ['prod_ABC123'] }), true);
+});
+
+test('productMatches: matches by name when no ID is pinned', () => {
+  const product = { id: 'prod_XYZ', name: 'EDGE Membership' };
+  assert.equal(productMatches(product, { matchName: 'EDGE', productIds: [] }), true);
+});
+
+test('productMatches: false when neither the ID nor the name matches', () => {
+  const product = { id: 'prod_OTHER', name: 'General Music Jumpstart' };
+  assert.equal(productMatches(product, { matchName: 'EDGE', productIds: ['prod_ABC123'] }), false);
 });
