@@ -5,18 +5,21 @@ const PERIODS = [
   { value: 'last_30_days', label: 'Last 30 days' },
 ];
 
-function formatCents(cents, currency = 'usd') {
+// Default params only cover an omitted/undefined argument, not an explicit
+// null (which the API can legitimately send for an account with no data) --
+// guard with `|| 'usd'` too so a null currency never crashes formatting.
+function formatCents(cents, currency) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: currency.toUpperCase(),
+    currency: (currency || 'usd').toUpperCase(),
     maximumFractionDigits: 0,
   }).format((cents || 0) / 100);
 }
 
-function formatAmount(amount, currency = 'USD') {
+function formatAmount(amount, currency) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: currency.toUpperCase(),
+    currency: (currency || 'usd').toUpperCase(),
     maximumFractionDigits: 0,
   }).format(amount || 0);
 }
