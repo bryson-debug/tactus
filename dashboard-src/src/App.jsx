@@ -50,6 +50,54 @@ function SourceCard({ title, result, render }) {
   );
 }
 
+// Combines two independent results (Stripe's exact MRR + PayPal's
+// approximation) into one card, so it doesn't fit SourceCard's
+// single-result shape.
+function MrrCard({ mrr }) {
+  if (!mrr) {
+    return (
+      <div className="card">
+        <div className="card__title">MRR (EDGE)</div>
+        <div className="card__skeleton" />
+      </div>
+    );
+  }
+
+  const stripeOk = mrr.stripe?.ok;
+  const paypalOk = mrr.paypal?.ok;
+  const anyOk = stripeOk || paypalOk;
+  const currency = (stripeOk && mrr.stripe.data.currency) || (paypalOk && mrr.paypal.data.currency) || 'usd';
+  const combinedCents = (stripeOk ? mrr.stripe.data.mrrCents : 0) + (paypalOk ? mrr.paypal.data.mrrCents : 0);
+
+  return (
+    <div className="card">
+      <div className="card__title">
+        <span className={`status-dot ${anyOk ? 'status-dot--good' : 'status-dot--error'}`} />
+        MRR (EDGE)
+      </div>
+      <div className="card__value">{anyOk ? formatCents(combinedCents, currency) : '—'}</div>
+      <div className="card__subvalue">
+        {stripeOk ? `${mrr.stripe.data.activeSubscriptionCount} active Stripe subscriptions` : 'Stripe MRR error'} ·
+        PayPal is approximate (trailing 30 days of matching payments, not a subscriber count)
+      </div>
+      <ul className="card__breakdown">
+        <li>
+          <span>Stripe (exact)</span>
+          <span className={stripeOk ? '' : 'card__breakdown-error'}>
+            {stripeOk ? formatCents(mrr.stripe.data.mrrCents, mrr.stripe.data.currency) : mrr.stripe?.error}
+          </span>
+        </li>
+        <li>
+          <span>PayPal (approx.)</span>
+          <span className={paypalOk ? '' : 'card__breakdown-error'}>
+            {paypalOk ? formatCents(mrr.paypal.data.mrrCents, mrr.paypal.data.currency) : mrr.paypal?.error}
+          </span>
+        </li>
+      </ul>
+    </div>
+  );
+}
+
 export default function App() {
   const [period, setPeriod] = useState('this_month');
   const [summary, setSummary] = useState(null);
@@ -77,8 +125,10 @@ export default function App() {
     load(period);
   }, [load, period]);
 
-  const combinedCents = summary?.stripe?.ok ? summary.stripe.data.grossCents : 0;
-  const anyRevenueSourceOk = summary?.stripe?.ok;
+  const combinedCents =
+    (summary?.stripe?.ok ? summary.stripe.data.grossCents : 0) +
+    (summary?.paypal?.ok ? summary.paypal.data.grossCents : 0);
+  const anyRevenueSourceOk = summary?.stripe?.ok || summary?.paypal?.ok;
 
   return (
     <div className="dashboard">
@@ -102,9 +152,11 @@ export default function App() {
       </div>
 
       <div className="hero">
-        <div className="hero__label">Revenue (Stripe)</div>
+        <div className="hero__label">Combined revenue (Stripe + PayPal)</div>
         <div className="hero__value">{anyRevenueSourceOk ? formatCents(combinedCents) : '—'}</div>
-        <div className="hero__note">PayPal is next -- will be added to this total once wired up.</div>
+        <div className="hero__note">
+          Naive sum across sources assuming USD; see individual cards for per-source detail and errors.
+        </div>
       </div>
 
       {fetchError ? (
@@ -140,6 +192,16 @@ export default function App() {
             )}
           />
           <SourceCard
+            title="PayPal revenue"
+            result={summary?.paypal}
+            render={(data) => (
+              <>
+                <div className="card__value">{formatCents(data.grossCents, data.currency)}</div>
+                <div className="card__subvalue">{data.transactionCount} transactions</div>
+              </>
+            )}
+          />
+          <SourceCard
             title="QuickBooks P&L"
             result={summary?.quickbooks}
             render={(data) => (
@@ -152,6 +214,7 @@ export default function App() {
               </>
             )}
           />
+          <MrrCard mrr={summary?.mrr} />
         </div>
       )}
 
