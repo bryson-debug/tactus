@@ -126,7 +126,20 @@ export default function App() {
             render={(data) => (
               <>
                 <div className="card__value">{formatCents(data.grossCents, data.currency)}</div>
-                <div className="card__subvalue">{data.transactionCount} transactions</div>
+                <div className="card__subvalue">
+                  {data.transactionCount} transactions across {data.accounts.length} account
+                  {data.accounts.length === 1 ? '' : 's'}
+                </div>
+                <ul className="card__breakdown">
+                  {data.accounts.map((account) => (
+                    <li key={account.label}>
+                      <span>{account.label}</span>
+                      <span className={account.ok ? '' : 'card__breakdown-error'}>
+                        {account.ok ? formatCents(account.data.grossCents, account.data.currency) : account.error}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </>
             )}
           />

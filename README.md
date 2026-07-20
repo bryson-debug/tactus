@@ -36,7 +36,13 @@ never breaks the other two.
 
 ## Credentials & one-time setup
 
-- [ ] **Stripe** — `STRIPE_SECRET_KEY`. Use a restricted, read-only key.
+- [ ] **Stripe** — `STRIPE_ACCOUNTS`, a comma-separated `Label:key` list (one
+      restricted, read-only key per Stripe account). Supports 3+ accounts
+      under one organization out of the box — each is fetched independently
+      and summed, so one bad key doesn't break the others; the dashboard
+      shows a per-account breakdown. Add a new account later by appending to
+      this one env var, no code change needed. Example:
+      `Main Store:rk_live_aaa,Second Store:rk_live_bbb,Third Store:rk_live_ccc`
 - [ ] **ThriveCart** — `THRIVECART_API_KEY`. **Validate before relying on
       numbers**: see the comment block at the top of
       `lib/thrivecart-sales-client.js` — ThriveCart's public API has no

@@ -159,6 +159,26 @@ body {
   margin-top: 4px;
 }
 
+.card__breakdown {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.card__breakdown li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+  color: var(--text-secondary);
+}
+
+.card__breakdown-error {
+  color: var(--status-critical);
+}
+
 .card__skeleton {
   height: 24px;
   width: 60%;
