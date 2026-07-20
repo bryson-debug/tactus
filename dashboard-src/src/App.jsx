@@ -77,10 +77,8 @@ export default function App() {
     load(period);
   }, [load, period]);
 
-  const combinedCents =
-    (summary?.stripe?.ok ? summary.stripe.data.grossCents : 0) +
-    (summary?.thrivecart?.ok ? summary.thrivecart.data.grossCents : 0);
-  const anyRevenueSourceOk = summary?.stripe?.ok || summary?.thrivecart?.ok;
+  const combinedCents = summary?.stripe?.ok ? summary.stripe.data.grossCents : 0;
+  const anyRevenueSourceOk = summary?.stripe?.ok;
 
   return (
     <div className="dashboard">
@@ -104,11 +102,9 @@ export default function App() {
       </div>
 
       <div className="hero">
-        <div className="hero__label">Combined revenue (Stripe + ThriveCart)</div>
+        <div className="hero__label">Revenue (Stripe)</div>
         <div className="hero__value">{anyRevenueSourceOk ? formatCents(combinedCents) : '—'}</div>
-        <div className="hero__note">
-          Naive sum across sources assuming USD; see individual cards for per-source detail and errors.
-        </div>
+        <div className="hero__note">PayPal is next -- will be added to this total once wired up.</div>
       </div>
 
       {fetchError ? (
@@ -153,16 +149,6 @@ export default function App() {
                   Income {formatAmount(data.totalIncome, data.currency)} · Expenses{' '}
                   {formatAmount(data.totalExpenses, data.currency)}
                 </div>
-              </>
-            )}
-          />
-          <SourceCard
-            title="ThriveCart sales"
-            result={summary?.thrivecart}
-            render={(data) => (
-              <>
-                <div className="card__value">{formatCents(data.grossCents, data.currency)}</div>
-                <div className="card__subvalue">{data.orderCount} orders</div>
               </>
             )}
           />
