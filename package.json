@@ -1,0 +1,24 @@
+{
+  "name": "tarbet-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Internal financial + activity dashboard for Tarbet Education Network (Stripe, QuickBooks, ThriveCart).",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "vite build --config dashboard-src/vite.config.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "vercel": "^37.0.0",
+    "vite": "^5.4.0",
+    "@vitejs/plugin-react": "^4.3.0"
+  }
+}

@@ -1,0 +1,7 @@
+node_modules/
+.env
+.env.local
+.vercel/
+# Built by `npm run build` (Vite) during Vercel's deploy -- not checked in.
+public/assets/
+public/index.html
