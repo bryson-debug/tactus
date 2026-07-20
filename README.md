@@ -45,6 +45,10 @@ never breaks the others.
 
 ## Credentials & one-time setup
 
+- [ ] **Dashboard password** — `DASHBOARD_PASSWORD`. Required: without it,
+      every API route (where the actual financial data lives) 401s. See
+      "Access control" below for why this exists instead of relying on
+      Vercel's own protection.
 - [ ] **Stripe** — `STRIPE_ACCOUNTS`, a comma-separated `Label:key` list (one
       restricted, read-only key per Stripe account). Supports 3+ accounts
       under one organization out of the box — each is fetched independently
@@ -72,10 +76,29 @@ never breaks the others.
       so it can't just live in an env var). Create a project, run the SQL
       files in `supabase/migrations/` in order, and set `SUPABASE_URL` /
       `SUPABASE_SERVICE_ROLE_KEY`.
-- [ ] **Vercel deployment protection** — enable it on the Vercel project
-      (Project Settings → Deployment Protection) so the dashboard isn't
-      publicly reachable. This may require a paid Vercel plan tier; confirm
-      availability on your account.
+## Access control
+
+Vercel's own Deployment Protection was the first thing tried here, but on
+the **Hobby plan its "Standard Protection" mode explicitly excludes
+production custom domains** — it only protects preview/deployment-hash
+URLs. Locking down the actual production URL requires "All Deployments"
+protection, which needs a paid Pro plan.
+
+Instead, `lib/dashboard-auth.js` implements a simple app-level password gate:
+every API route that returns real data (`api/metrics/summary.js`,
+`api/quickbooks/oauth-start.js`) checks for a session cookie matching
+`DASHBOARD_PASSWORD` and 401s otherwise. `api/login.js` serves a bare
+password form and sets that cookie on success. The static frontend shell
+itself isn't gated (it has no data embedded in it), so an unauthenticated
+visitor sees the page but every card fails to load until they sign in —
+the dashboard UI detects a 401 and shows a "Sign in" link instead of raw
+errors.
+
+This is a deliberate simplification: the session cookie is just the
+password itself (httpOnly + Secure + SameSite=Lax), not a signed/opaque
+token. Fine for a 2-person internal tool; if the team grows or the threat
+model changes, this is the first thing to harden (or revisit upgrading to
+Vercel Pro for "All Deployments" protection instead).
 
 ## MRR for EDGE
 

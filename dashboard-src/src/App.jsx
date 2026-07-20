@@ -122,12 +122,18 @@ export default function App() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
+  const [needsAuth, setNeedsAuth] = useState(false);
 
   const load = useCallback(async (p) => {
     setLoading(true);
     setFetchError(null);
+    setNeedsAuth(false);
     try {
       const resp = await fetch(`/api/metrics/summary?period=${encodeURIComponent(p)}`);
+      if (resp.status === 401) {
+        setNeedsAuth(true);
+        return;
+      }
       if (!resp.ok) {
         const body = await resp.json().catch(() => ({}));
         throw new Error(body.detail || body.error || `Request failed: ${resp.status}`);
@@ -143,6 +149,25 @@ export default function App() {
   useEffect(() => {
     load(period);
   }, [load, period]);
+
+  if (needsAuth) {
+    return (
+      <div className="dashboard">
+        <div className="dashboard__header">
+          <div>
+            <h1>Tactus</h1>
+            <div className="dashboard__subtitle">Tarbet Education Network</div>
+          </div>
+        </div>
+        <div className="card">
+          <div className="card__title">Sign in required</div>
+          <a className="card__retry" href="/api/login">
+            Sign in
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   const combinedCents =
     (summary?.stripe?.ok ? summary.stripe.data.grossCents : 0) +
