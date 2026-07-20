@@ -68,6 +68,13 @@ function MrrCard({ mrr }) {
   const anyOk = stripeOk || paypalOk;
   const currency = (stripeOk && mrr.stripe.data.currency) || (paypalOk && mrr.paypal.data.currency) || 'usd';
   const combinedCents = (stripeOk ? mrr.stripe.data.mrrCents : 0) + (paypalOk ? mrr.paypal.data.mrrCents : 0);
+  // getEdgeMrr() always resolves "ok" even if every underlying Stripe
+  // account failed (it settles per-account internally) -- so a real
+  // failure (e.g. a restricted key missing the Products/Prices/
+  // Subscriptions permissions the MRR lookup needs) would otherwise show
+  // as a silent $0 instead of an error. Surface the per-account breakdown
+  // here, same as the revenue card, so that's visible.
+  const stripeAccounts = stripeOk ? mrr.stripe.data.accounts : [];
 
   return (
     <div className="card">
@@ -81,12 +88,21 @@ function MrrCard({ mrr }) {
         PayPal is approximate (trailing 30 days of matching payments, not a subscriber count)
       </div>
       <ul className="card__breakdown">
-        <li>
-          <span>Stripe (exact)</span>
-          <span className={stripeOk ? '' : 'card__breakdown-error'}>
-            {stripeOk ? formatCents(mrr.stripe.data.mrrCents, mrr.stripe.data.currency) : mrr.stripe?.error}
-          </span>
-        </li>
+        {stripeOk ? (
+          stripeAccounts.map((account) => (
+            <li key={`stripe-${account.label}`}>
+              <span>Stripe · {account.label}</span>
+              <span className={account.ok ? '' : 'card__breakdown-error'}>
+                {account.ok ? formatCents(account.data.mrrCents, account.data.currency) : account.error}
+              </span>
+            </li>
+          ))
+        ) : (
+          <li>
+            <span>Stripe</span>
+            <span className="card__breakdown-error">{mrr.stripe?.error}</span>
+          </li>
+        )}
         <li>
           <span>PayPal (approx.)</span>
           <span className={paypalOk ? '' : 'card__breakdown-error'}>
