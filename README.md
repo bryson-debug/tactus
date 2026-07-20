@@ -1,4 +1,4 @@
-# Tarbet Dashboard
+# Tactus
 
 Internal financial + activity dashboard for Tarbet Education Network. Phase 1
 combines **Stripe** (revenue), **QuickBooks Online** (P&L / cash flow), and

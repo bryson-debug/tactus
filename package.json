@@ -1,8 +1,8 @@
 {
-  "name": "tarbet-dashboard",
+  "name": "tactus",
   "version": "0.1.0",
   "private": true,
-  "description": "Internal financial + activity dashboard for Tarbet Education Network (Stripe, QuickBooks, ThriveCart).",
+  "description": "Tactus -- internal financial + activity dashboard for Tarbet Education Network (Stripe, QuickBooks, ThriveCart).",
   "engines": {
     "node": ">=20"
   },

@@ -73,6 +73,12 @@ body {
   margin: 0;
 }
 
+.dashboard__subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
 .dashboard__controls {
   display: flex;
   align-items: center;

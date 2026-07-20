@@ -85,7 +85,10 @@ export default function App() {
   return (
     <div className="dashboard">
       <div className="dashboard__header">
-        <h1>Tarbet Education Network — Dashboard</h1>
+        <div>
+          <h1>Tactus</h1>
+          <div className="dashboard__subtitle">Tarbet Education Network</div>
+        </div>
         <div className="dashboard__controls">
           <select value={period} onChange={(e) => setPeriod(e.target.value)}>
             {PERIODS.map((p) => (
