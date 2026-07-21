@@ -90,10 +90,13 @@ reconciled from ones that are still projected pacing.
    key.
 2. Share the "Revenue Projections" sheet with that service account's email
    address (looks like `...@...iam.gserviceaccount.com`) as a **Viewer**.
-3. Set `GOOGLE_SERVICE_ACCOUNT_EMAIL` and
-   `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` (the key JSON's `private_key` field)
-   in the environment. `CASHFLOW_SHEET_ID` is optional — it defaults to the
-   sheet already wired in.
+3. Base64-encode the *whole downloaded JSON key file* and set it as
+   `GOOGLE_SERVICE_ACCOUNT_KEY_BASE64` (e.g. `base64 -i key.json | pbcopy`
+   on Mac). One blob, rather than splitting the key into separate env
+   vars — the multi-line private key is easy to mangle via copy/paste
+   through a web UI otherwise, which fails at request time with an opaque
+   OpenSSL `DECODER routines::unsupported` error. `CASHFLOW_SHEET_ID` is
+   optional — it defaults to the sheet already wired in.
 
 **Parsing risk:** `lib/cashflow-sheet-client.js` finds the header row by
 scanning for a month name, then finds each data row by matching its label
@@ -163,8 +166,8 @@ the full rationale.
       files in `supabase/migrations/` in order, and set `SUPABASE_URL` /
       `SUPABASE_SERVICE_ROLE_KEY`.
 - [ ] **Google service account** — for the cash flow projector (see "Cash
-      flow projector" above). Set `GOOGLE_SERVICE_ACCOUNT_EMAIL` /
-      `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`, and share the "Revenue
+      flow projector" above). Set `GOOGLE_SERVICE_ACCOUNT_KEY_BASE64`, and
+      share the "Revenue
       Projections" sheet with that service account's email as a Viewer.
 
 ## Access control
