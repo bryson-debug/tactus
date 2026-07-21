@@ -17,7 +17,7 @@ reliable and gives full historical data for free.
 ## Architecture
 
 ```
-Browser (behind Vercel deployment protection)
+Browser (behind the app-level password gate -- see "Access control" below)
       │  GET /api/metrics/summary?period=this_month
       ▼
 api/metrics/summary.js
@@ -33,6 +33,28 @@ lib/metrics.js  ← the reusable seam. Pure function, no HTTP concerns.
 Each source is fetched independently (`Promise.all` + per-source try/catch in
 `lib/metrics.js`) — one source failing (e.g. QuickBooks not yet connected)
 never breaks the others.
+
+## Time periods
+
+`today`, `this_month`, `last_month`, `this_quarter`, `year_to_date`, and
+`custom` (explicit `start`/`end` query params, `YYYY-MM-DD`). All non-custom
+periods refetch automatically when selected; custom waits for an explicit
+**Apply** click once both dates are filled in, so it doesn't fire a request
+on every keystroke. The response's `range.endDate` always reflects the
+inclusive end date actually covered (for `custom` that's exactly what was
+typed in, not the exclusive day-after boundary used internally for the
+underlying date-range API calls).
+
+## Theming
+
+Light mode (white surfaces, brand teal `#12a99f` as the accent) is the
+default. A manual dark mode toggle persists to `localStorage` and overrides
+the OS preference once set. Raw brand teal fails WCAG contrast on white
+(2.92:1) — `--brand-teal-strong` (`#0c7a73`, a darkened step of the same
+hue, 5.19:1) is used anywhere text/button contrast matters in light mode;
+in dark mode the raw hue clears contrast directly, so no separate step is
+needed there. See the comment at the top of `dashboard-src/src/App.css` for
+the full rationale.
 
 ## Local setup
 

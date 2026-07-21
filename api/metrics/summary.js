@@ -13,8 +13,13 @@ module.exports = async (req, res) => {
   }
 
   const period = (req.query.period || 'this_month').toString();
+  const customRange =
+    period === 'custom'
+      ? { start: (req.query.start || '').toString(), end: (req.query.end || '').toString() }
+      : undefined;
+
   try {
-    const summary = await getDashboardSummary({ period });
+    const summary = await getDashboardSummary({ period, customRange });
     res.status(200).json(summary);
   } catch (err) {
     res.status(400).json({ error: 'Failed to build dashboard summary', detail: err.message });

@@ -3,6 +3,12 @@ const assert = require('node:assert/strict');
 const { resolvePeriod } = require('../lib/metrics');
 const { extractProfitAndLossTotals } = require('../lib/quickbooks-client');
 
+test('resolvePeriod: today spans midnight UTC to now', () => {
+  const { startDate, endDate, sinceUnix, untilUnix } = resolvePeriod('today');
+  assert.equal(startDate, endDate);
+  assert.ok(sinceUnix <= untilUnix);
+});
+
 test('resolvePeriod: this_month spans the 1st of the month to now', () => {
   const { startDate, endDate, sinceUnix, untilUnix } = resolvePeriod('this_month');
   assert.match(startDate, /-01$/);
@@ -10,10 +16,47 @@ test('resolvePeriod: this_month spans the 1st of the month to now', () => {
   assert.ok(endDate >= startDate);
 });
 
-test('resolvePeriod: last_30_days spans roughly 30 days', () => {
-  const { sinceUnix, untilUnix } = resolvePeriod('last_30_days');
-  const days = (untilUnix - sinceUnix) / 86400;
-  assert.ok(Math.abs(days - 30) < 1);
+test('resolvePeriod: last_month spans the entire previous calendar month', () => {
+  const now = new Date();
+  const { startDate, endDate } = resolvePeriod('last_month');
+  assert.match(startDate, /-01$/);
+  // endDate is the exclusive upper bound, i.e. the 1st of this_month.
+  const thisMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10);
+  assert.equal(endDate, thisMonthStart);
+});
+
+test('resolvePeriod: this_quarter starts on a quarter boundary month', () => {
+  const { startDate } = resolvePeriod('this_quarter');
+  const month = Number(startDate.slice(5, 7));
+  assert.ok([1, 4, 7, 10].includes(month));
+});
+
+test('resolvePeriod: year_to_date starts January 1st of this year', () => {
+  const now = new Date();
+  const { startDate } = resolvePeriod('year_to_date');
+  assert.equal(startDate, `${now.getUTCFullYear()}-01-01`);
+});
+
+test('resolvePeriod: custom spans the given inclusive start/end dates', () => {
+  const { startDate, endDate } = resolvePeriod('custom', { start: '2026-01-05', end: '2026-01-10' });
+  assert.equal(startDate, '2026-01-05');
+  // endDate is the exclusive upper bound -- one day past the inclusive end picked.
+  assert.equal(endDate, '2026-01-11');
+});
+
+test('resolvePeriod: custom rejects a missing range', () => {
+  assert.throws(() => resolvePeriod('custom'), /requires start and end/);
+});
+
+test('resolvePeriod: custom rejects a malformed date', () => {
+  assert.throws(() => resolvePeriod('custom', { start: 'not-a-date', end: '2026-01-10' }), /YYYY-MM-DD/);
+});
+
+test('resolvePeriod: custom rejects start on or after end', () => {
+  assert.throws(
+    () => resolvePeriod('custom', { start: '2026-01-10', end: '2026-01-05' }),
+    /start must be before end/
+  );
 });
 
 test('resolvePeriod: rejects unknown periods', () => {

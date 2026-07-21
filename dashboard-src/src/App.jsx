@@ -1,9 +1,21 @@
 import React, { useCallback, useEffect, useState } from 'react';
 
 const PERIODS = [
+  { value: 'today', label: 'Today' },
   { value: 'this_month', label: 'This month' },
-  { value: 'last_30_days', label: 'Last 30 days' },
+  { value: 'last_month', label: 'Last month' },
+  { value: 'this_quarter', label: 'This quarter' },
+  { value: 'year_to_date', label: 'Year to date' },
+  { value: 'custom', label: 'Custom range' },
 ];
+
+const THEME_STORAGE_KEY = 'tactus-theme';
+
+function getInitialTheme() {
+  const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+  if (stored === 'light' || stored === 'dark') return stored;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
 
 // Default params only cover an omitted/undefined argument, not an explicit
 // null (which the API can legitimately send for an account with no data) --
@@ -118,18 +130,31 @@ function MrrCard({ mrr }) {
 }
 
 export default function App() {
+  const [theme, setTheme] = useState(getInitialTheme);
   const [period, setPeriod] = useState('this_month');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
   const [needsAuth, setNeedsAuth] = useState(false);
 
-  const load = useCallback(async (p) => {
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
+
+  const load = useCallback(async (p, range) => {
     setLoading(true);
     setFetchError(null);
     setNeedsAuth(false);
     try {
-      const resp = await fetch(`/api/metrics/summary?period=${encodeURIComponent(p)}`);
+      const params = new URLSearchParams({ period: p });
+      if (p === 'custom' && range?.start && range?.end) {
+        params.set('start', range.start);
+        params.set('end', range.end);
+      }
+      const resp = await fetch(`/api/metrics/summary?${params.toString()}`);
       if (resp.status === 401) {
         setNeedsAuth(true);
         return;
@@ -147,8 +172,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // Custom range waits for an explicit Apply click (below) instead of
+    // fetching on every keystroke/period change with an incomplete range.
+    if (period === 'custom') return;
     load(period);
   }, [load, period]);
+
+  const currentRange = period === 'custom' ? { start: customStart, end: customEnd } : undefined;
 
   if (needsAuth) {
     return (
@@ -159,6 +189,7 @@ export default function App() {
             <div className="dashboard__subtitle">Tarbet Education Network</div>
           </div>
         </div>
+        <div className="dashboard__accent-bar" />
         <div className="card">
           <div className="card__title">Sign in required</div>
           <a className="card__retry" href="/api/login">
@@ -189,11 +220,39 @@ export default function App() {
               </option>
             ))}
           </select>
-          <button onClick={() => load(period)} disabled={loading}>
-            {loading ? 'Refreshing…' : 'Refresh'}
+          {period === 'custom' ? (
+            <>
+              <input
+                type="date"
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+                aria-label="Custom range start"
+              />
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                aria-label="Custom range end"
+              />
+              <button onClick={() => load('custom', currentRange)} disabled={!customStart || !customEnd || loading}>
+                Apply
+              </button>
+            </>
+          ) : (
+            <button onClick={() => load(period)} disabled={loading}>
+              {loading ? 'Refreshing…' : 'Refresh'}
+            </button>
+          )}
+          <button
+            className="theme-toggle"
+            onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+            aria-label="Toggle color theme"
+          >
+            {theme === 'dark' ? 'Dark' : 'Light'}
           </button>
         </div>
       </div>
+      <div className="dashboard__accent-bar" />
 
       <div className="hero">
         <div className="hero__label">Combined revenue (Stripe + PayPal)</div>
@@ -206,7 +265,7 @@ export default function App() {
       {fetchError ? (
         <div className="card">
           <div className="card__error">Dashboard lookup failed: {fetchError}</div>
-          <button className="card__retry" onClick={() => load(period)}>
+          <button className="card__retry" onClick={() => load(period, currentRange)}>
             Retry
           </button>
         </div>

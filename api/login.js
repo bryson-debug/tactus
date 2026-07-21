@@ -10,12 +10,13 @@ function formHtml(showError) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Tactus</title>
 <style>
-  body { font-family: system-ui, -apple-system, sans-serif; background: #0d0d0d; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-  form { background: #1a1a19; padding: 32px; border-radius: 12px; width: 260px; border: 1px solid rgba(255,255,255,0.1); }
+  body { font-family: system-ui, -apple-system, sans-serif; background: #f6f7f7; color: #14181a; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+  form { background: #ffffff; padding: 32px; border-radius: 12px; width: 260px; border: 1px solid rgba(20,24,26,0.1); border-top: 3px solid #12a99f; }
   h1 { font-size: 18px; margin: 0 0 16px; }
-  input { width: 100%; padding: 8px 10px; margin-bottom: 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); background: #0d0d0d; color: #fff; box-sizing: border-box; font-size: 14px; }
-  button { width: 100%; padding: 8px; border-radius: 6px; border: none; background: #3987e5; color: #fff; cursor: pointer; font-size: 14px; }
-  .error { color: #e66767; font-size: 13px; margin-bottom: 12px; }
+  input { width: 100%; padding: 8px 10px; margin-bottom: 12px; border-radius: 6px; border: 1px solid rgba(20,24,26,0.2); background: #ffffff; color: #14181a; box-sizing: border-box; font-size: 14px; }
+  button { width: 100%; padding: 8px; border-radius: 6px; border: none; background: #0c7a73; color: #fff; cursor: pointer; font-size: 14px; font-weight: 600; }
+  button:hover { background: #095c57; }
+  .error { color: #d03b3b; font-size: 13px; margin-bottom: 12px; }
 </style>
 </head>
 <body>
