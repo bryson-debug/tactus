@@ -2,11 +2,11 @@
 
 Internal financial + activity dashboard for Tarbet Education Network. Phase 1
 combines **Stripe** and **PayPal** (revenue, plus MRR for the EDGE
-subscription), **QuickBooks Online** (P&L / cash flow, plus paid invoices --
-revenue collected outside Stripe/PayPal, e.g. check or bank transfer) into
-one view. Meta Business Suite, Flodesk, and Vimeo are deferred to Phase 2. A
-Slack digest is deferred but the data layer (`lib/metrics.js`) is built so
-adding it later is additive, not a rewrite.
+subscription), **QuickBooks Online** (P&L / cash flow, plus payments
+received -- revenue collected outside Stripe/PayPal, e.g. check or bank
+transfer) into one view. Meta Business Suite, Flodesk, and Vimeo are
+deferred to Phase 2. A Slack digest is deferred but the data layer
+(`lib/metrics.js`) is built so adding it later is additive, not a rewrite.
 
 ThriveCart was evaluated and dropped as a data source: it has no API to
 list/query historical orders (only single-customer lookups and a product
@@ -46,21 +46,22 @@ inclusive end date actually covered (for `custom` that's exactly what was
 typed in, not the exclusive day-after boundary used internally for the
 underlying date-range API calls).
 
-## QuickBooks paid invoices
+## QuickBooks payments received
 
 Included in combined revenue as money collected outside Stripe/PayPal (e.g.
 check, bank transfer) -- confirmed with the team that these don't overlap
 with what Stripe/PayPal already report, so summing them in is safe rather
 than double-counting.
 
-QBO has no direct "paid" filter on Invoice; `Balance = '0'` is the
-documented way to identify a fully-paid invoice
-(`lib/quickbooks-client.js`). **Known simplification**: filtered by
-`TxnDate` (the invoice date), not the date it was actually paid -- QBO
-doesn't expose payment date on the Invoice object itself, only via a
-separate join to Payment records, which this doesn't do. An invoice dated
-in one period but paid in a later one will show up in the period it was
-*dated*, not the period it was *paid*.
+Queries QuickBooks's `Payment` entity directly (`getPaymentsReceivedSummary`
+in `lib/quickbooks-client.js`), filtered by `Payment.TxnDate` -- the actual
+date the money was received, confirmed against Intuit's Payment entity
+docs. An earlier version of this inferred "paid" from `Invoice.Balance = 0`
+filtered by the invoice's *own* date, which meant an invoice dated in one
+period but paid in a later one showed up in the wrong period. Querying
+`Payment` directly is both more accurate and simpler -- a Payment record
+only exists once money has actually come in, so there's no extra "is it
+paid" filter to apply the way Invoice needed.
 
 ## Theming
 

@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { resolvePeriod } = require('../lib/metrics');
-const { extractProfitAndLossTotals, sumInvoices } = require('../lib/quickbooks-client');
+const { extractProfitAndLossTotals, sumTransactionAmounts } = require('../lib/quickbooks-client');
 
 test('resolvePeriod: today spans midnight UTC to now', () => {
   const { startDate, endDate, sinceUnix, untilUnix } = resolvePeriod('today');
@@ -122,25 +122,25 @@ test('extractProfitAndLossTotals: defaults to zero when a group is missing', () 
   assert.equal(totals.netIncome, 0);
 });
 
-test('sumInvoices: sums TotalAmt in cents and counts invoices', () => {
-  const result = sumInvoices([
+test('sumTransactionAmounts: sums TotalAmt in cents and counts records', () => {
+  const result = sumTransactionAmounts([
     { TotalAmt: '100.50', CurrencyRef: { value: 'USD' } },
     { TotalAmt: '49.50' },
   ]);
   assert.equal(result.grossCents, 15000);
-  assert.equal(result.invoiceCount, 2);
+  assert.equal(result.count, 2);
   assert.equal(result.currency, 'USD');
 });
 
-test('sumInvoices: returns zeros for an empty list', () => {
-  const result = sumInvoices([]);
+test('sumTransactionAmounts: returns zeros for an empty list', () => {
+  const result = sumTransactionAmounts([]);
   assert.equal(result.grossCents, 0);
-  assert.equal(result.invoiceCount, 0);
+  assert.equal(result.count, 0);
   assert.equal(result.currency, null);
 });
 
-test('sumInvoices: treats a missing/non-numeric TotalAmt as zero', () => {
-  const result = sumInvoices([{ TotalAmt: undefined }, { TotalAmt: 'not-a-number' }]);
+test('sumTransactionAmounts: treats a missing/non-numeric TotalAmt as zero', () => {
+  const result = sumTransactionAmounts([{ TotalAmt: undefined }, { TotalAmt: 'not-a-number' }]);
   assert.equal(result.grossCents, 0);
-  assert.equal(result.invoiceCount, 2);
+  assert.equal(result.count, 2);
 });
