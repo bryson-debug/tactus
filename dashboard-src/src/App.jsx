@@ -202,8 +202,9 @@ export default function App() {
 
   const combinedCents =
     (summary?.stripe?.ok ? summary.stripe.data.grossCents : 0) +
-    (summary?.paypal?.ok ? summary.paypal.data.grossCents : 0);
-  const anyRevenueSourceOk = summary?.stripe?.ok || summary?.paypal?.ok;
+    (summary?.paypal?.ok ? summary.paypal.data.grossCents : 0) +
+    (summary?.quickbooksInvoices?.ok ? summary.quickbooksInvoices.data.grossCents : 0);
+  const anyRevenueSourceOk = summary?.stripe?.ok || summary?.paypal?.ok || summary?.quickbooksInvoices?.ok;
 
   return (
     <div className="dashboard">
@@ -255,7 +256,7 @@ export default function App() {
       <div className="dashboard__accent-bar" />
 
       <div className="hero">
-        <div className="hero__label">Combined revenue (Stripe + PayPal)</div>
+        <div className="hero__label">Combined revenue (Stripe + PayPal + paid QuickBooks invoices)</div>
         <div className="hero__value">{anyRevenueSourceOk ? formatCents(combinedCents) : '—'}</div>
         <div className="hero__note">
           Naive sum across sources assuming USD; see individual cards for per-source detail and errors.
@@ -314,6 +315,16 @@ export default function App() {
                   Income {formatAmount(data.totalIncome, data.currency)} · Expenses{' '}
                   {formatAmount(data.totalExpenses, data.currency)}
                 </div>
+              </>
+            )}
+          />
+          <SourceCard
+            title="QuickBooks paid invoices"
+            result={summary?.quickbooksInvoices}
+            render={(data) => (
+              <>
+                <div className="card__value">{formatCents(data.grossCents, data.currency)}</div>
+                <div className="card__subvalue">{data.invoiceCount} invoices, dated in this period</div>
               </>
             )}
           />
