@@ -28,7 +28,8 @@ lib/metrics.js  ← the reusable seam. Pure function, no HTTP concerns.
       │            A future api/digest/send.js calls this same function.
       ├─ lib/stripe-client.js   (revenue + exact EDGE MRR)
       ├─ lib/paypal-client.js   (revenue + approximate EDGE MRR)
-      └─ lib/quickbooks-client.js (+ lib/quickbooks-token-store.js → Supabase)
+      ├─ lib/quickbooks-client.js (+ lib/quickbooks-token-store.js → Supabase)
+      └─ lib/cashflow-sheet-client.js (Google Sheets API, service account)
 ```
 
 Each source is fetched independently (`Promise.all` + per-source try/catch in
@@ -63,6 +64,50 @@ period but paid in a later one showed up in the wrong period. Querying
 only exists once money has actually come in, so there's no extra "is it
 paid" filter to apply the way Invoice needed.
 
+## Cash flow projector
+
+Shows the team's existing "Revenue Projections" Google Sheet (a manually
+maintained 14-month pacing model: income line items, expenses, net profit,
+and a running cash-on-hand balance) in a table below the main dashboard
+cards.
+
+This is deliberately **shown as-is, not blended** with live Stripe/PayPal/
+QuickBooks/MRR data — the sheet is the team's own forward-looking model, and
+silently overwriting its numbers with live figures would make it stop
+reflecting what was actually planned. Instead, a comparison line under the
+table shows the live combined revenue and MRR for the dashboard's *currently
+selected period* side by side, so you can eyeball actuals vs. the sheet's
+projection for the matching month yourself. The sheet section itself isn't
+period-scoped — it always shows its own full 14-month range regardless of
+the date-range picker above it.
+
+Each month column that the sheet's own "Updated to Actual" row marks `TRUE`
+gets an "actual" badge, distinguishing months the team has already
+reconciled from ones that are still projected pacing.
+
+**Setup:**
+1. Create (or reuse) a Google Cloud service account and download its JSON
+   key.
+2. Share the "Revenue Projections" sheet with that service account's email
+   address (looks like `...@...iam.gserviceaccount.com`) as a **Viewer**.
+3. Set `GOOGLE_SERVICE_ACCOUNT_EMAIL` and
+   `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` (the key JSON's `private_key` field)
+   in the environment. `CASHFLOW_SHEET_ID` is optional — it defaults to the
+   sheet already wired in.
+
+**Parsing risk:** `lib/cashflow-sheet-client.js` finds the header row by
+scanning for a month name, then finds each data row by matching its label
+text exactly (`Total Income`, `Total Expenses`, `Net Profit`,
+`Cash On Hand`, `Updated to Actual`) — not fixed row/column positions, the
+same defensive approach `lib/quickbooks-client.js` uses for QuickBooks's P&L
+report tree, so reordering or inserting rows in the sheet won't break it.
+This label matching was validated against a text preview of the real sheet
+and against a synthetic test fixture (`test/cashflow-sheet-client.test.js`),
+but **not yet against a live call to the real Sheets API** — if the card
+shows "Cash flow sheet is missing an expected row," the row labels in the
+live sheet don't exactly match the ones above and `lib/cashflow-sheet-client.js`
+will need a small adjustment.
+
 ## Theming
 
 Light mode (white surfaces, brand teal `#12a99f` as the accent) is the
@@ -81,7 +126,8 @@ the full rationale.
 3. `npm run dev` (runs `vercel dev`).
 4. `npm test` runs the pure-logic unit tests (period math, QuickBooks report
    parsing, Stripe multi-account parsing, MRR normalization, PayPal text
-   matching) — no network calls, no credentials required.
+   matching, cash flow sheet parsing) — no network calls, no credentials
+   required.
 
 ## Credentials & one-time setup
 
@@ -116,6 +162,11 @@ the full rationale.
       so it can't just live in an env var). Create a project, run the SQL
       files in `supabase/migrations/` in order, and set `SUPABASE_URL` /
       `SUPABASE_SERVICE_ROLE_KEY`.
+- [ ] **Google service account** — for the cash flow projector (see "Cash
+      flow projector" above). Set `GOOGLE_SERVICE_ACCOUNT_EMAIL` /
+      `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`, and share the "Revenue
+      Projections" sheet with that service account's email as a Viewer.
+
 ## Access control
 
 Vercel's own Deployment Protection was the first thing tried here, but on

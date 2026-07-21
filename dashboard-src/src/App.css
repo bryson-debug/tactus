@@ -307,3 +307,87 @@ a {
   font-size: 12px;
   color: var(--text-muted);
 }
+
+.cashflow {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-top: 20px;
+}
+
+.cashflow-loading {
+  margin-top: 20px;
+}
+
+.cashflow__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.cashflow__header h2 {
+  font-size: 15px;
+  margin: 0;
+}
+
+.cashflow__note {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Wide content gets its own horizontal scroll -- 14 month columns don't fit
+   the dashboard's max-width, and the page itself must never scroll sideways. */
+.cashflow__table-wrap {
+  overflow-x: auto;
+  margin: 14px 0;
+}
+
+.cashflow__table {
+  border-collapse: collapse;
+  font-size: 12px;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.cashflow__table th,
+.cashflow__table td {
+  padding: 6px 12px;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+
+.cashflow__table th:first-child,
+.cashflow__table td:first-child {
+  text-align: left;
+  color: var(--text-secondary);
+  position: sticky;
+  left: 0;
+  background: var(--surface-1);
+}
+
+.cashflow__table th {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.cashflow__actual-badge {
+  display: block;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--brand-teal-strong);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.cashflow__negative {
+  color: var(--status-critical);
+}
+
+.cashflow__comparison {
+  font-size: 12px;
+  color: var(--text-secondary);
+}

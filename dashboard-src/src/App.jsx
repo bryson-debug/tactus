@@ -129,6 +129,85 @@ function MrrCard({ mrr }) {
   );
 }
 
+// Shows the "Revenue Projections" Google Sheet as-is (see README) --
+// deliberately NOT blended with live Stripe/PayPal/QuickBooks/MRR data.
+// Those are shown alongside as a separate comparison line so you can eyeball
+// pacing vs. reality without the projector silently rewriting the sheet's
+// numbers.
+function CashFlowSection({ result, liveIncomeCents, mrrCents }) {
+  if (!result) {
+    return (
+      <div className="card cashflow-loading">
+        <div className="card__title">Cash Flow Projection</div>
+        <div className="card__skeleton" />
+      </div>
+    );
+  }
+
+  if (!result.ok) {
+    return (
+      <div className="card cashflow-loading">
+        <div className="card__title">
+          <span className="status-dot status-dot--error" />
+          Cash Flow Projection
+        </div>
+        <div className="card__error">{result.error}</div>
+      </div>
+    );
+  }
+
+  const { months, incomeCents, expensesCents, netProfitCents, cashOnHandCents, isActual } = result.data;
+  const rows = [
+    { label: 'Income', values: incomeCents },
+    { label: 'Expenses', values: expensesCents },
+    { label: 'Net profit', values: netProfitCents, signed: true },
+    { label: 'Cash on hand', values: cashOnHandCents },
+  ];
+
+  return (
+    <div className="cashflow">
+      <div className="cashflow__header">
+        <h2>Cash Flow Projection</h2>
+        <div className="cashflow__note">
+          From the "Revenue Projections" Google Sheet, shown as-is -- not blended with the live data above.
+        </div>
+      </div>
+      <div className="cashflow__table-wrap">
+        <table className="cashflow__table">
+          <thead>
+            <tr>
+              <th />
+              {months.map((month, i) => (
+                <th key={`${month}-${i}`}>
+                  {month}
+                  {isActual[i] ? <span className="cashflow__actual-badge">actual</span> : null}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.label}>
+                <td>{row.label}</td>
+                {row.values.map((cents, i) => (
+                  <td key={i} className={row.signed && cents < 0 ? 'cashflow__negative' : ''}>
+                    {formatCents(cents)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="cashflow__comparison">
+        Live combined revenue for the selected period: <strong>{formatCents(liveIncomeCents)}</strong> · Known
+        recurring MRR: <strong>{formatCents(mrrCents)}</strong> — compare against the sheet's Income row for the
+        matching month above.
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [theme, setTheme] = useState(getInitialTheme);
   const [period, setPeriod] = useState('this_month');
@@ -205,6 +284,9 @@ export default function App() {
     (summary?.paypal?.ok ? summary.paypal.data.grossCents : 0) +
     (summary?.quickbooksPayments?.ok ? summary.quickbooksPayments.data.grossCents : 0);
   const anyRevenueSourceOk = summary?.stripe?.ok || summary?.paypal?.ok || summary?.quickbooksPayments?.ok;
+  const mrrCents =
+    (summary?.mrr?.stripe?.ok ? summary.mrr.stripe.data.mrrCents : 0) +
+    (summary?.mrr?.paypal?.ok ? summary.mrr.paypal.data.mrrCents : 0);
 
   return (
     <div className="dashboard">
@@ -331,6 +413,10 @@ export default function App() {
           <MrrCard mrr={summary?.mrr} />
         </div>
       )}
+
+      {!fetchError ? (
+        <CashFlowSection result={summary?.cashFlowProjection} liveIncomeCents={combinedCents} mrrCents={mrrCents} />
+      ) : null}
 
       {summary ? (
         <div className="dashboard__meta">
