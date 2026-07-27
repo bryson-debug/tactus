@@ -126,11 +126,18 @@ cards (not a fixed snapshot like MRR or the cash flow sheet).
 **Growth** counts subscribers whose `created_at` falls inside the selected
 period. Flodesk's `GET /subscribers` endpoint has no date-range filter and
 no documented sort order, so `lib/flodesk-client.js` walks every page and
-filters client-side -- correct for any historical period, capped at 20,000
-subscribers (200 pages) as a safety bound against an unexpectedly huge list
-running past Vercel's function time limit. The card also shows the current
-total active-subscriber count for context (a single cheap request, not part
-of the pagination walk).
+filters client-side -- correct for any historical period. Pages are fetched
+concurrently in small batches (`PAGE_FETCH_CONCURRENCY`, currently 10 at a
+time) rather than one at a time: an earlier version fetched sequentially and
+that hit a real production bug -- Vercel's Hobby plan hard-caps a function
+at 10 seconds (not configurable higher without upgrading), and sequential
+pagination for even a few hundred subscribers didn't fit, so every dashboard
+load 504'd. Capped at 5,000 subscribers (`MAX_PAGES` × 100 per page) as a
+safety bound against an unusually large list still running past that same
+10-second limit or Flodesk's 100 req/min rate limit -- past that, the card
+notes the count may be incomplete. The card also shows the current total
+active-subscriber count for context (a single cheap request, not part of
+the pagination walk).
 
 **Churn is architecturally different**, and this is worth understanding
 before it looks "broken": Flodesk's REST API has no `unsubscribed_at` field

@@ -51,35 +51,72 @@ test('filterCreatedInRange: returns empty array when nothing matches', () => {
   assert.deepEqual(result, []);
 });
 
-test('getSubscriberGrowth: paginates through every page and counts subscribers created in range', async () => {
-  const pages = [
-    {
-      meta: { total_pages: 2 },
-      data: [
-        { id: '1', created_at: '2026-07-10T00:00:00.000Z' }, // in range
-        { id: '2', created_at: '2020-01-01T00:00:00.000Z' }, // not in range
-      ],
-    },
-    {
-      meta: { total_pages: 2 },
-      data: [{ id: '3', created_at: '2026-07-20T00:00:00.000Z' }], // in range
-    },
-  ];
-  const activeSnapshot = { meta: { total_items: 42 } };
-
+// Routes by the page= query param rather than call order, since pages after
+// the first are now fetched concurrently in batches (see PAGE_FETCH_CONCURRENCY
+// in lib/flodesk-client.js) -- a fix for a real production timeout where
+// sequential pagination didn't fit in Vercel's 10-second function limit.
+function mockPaginatedSubscribers(pagesByNumber, { totalPages, activeTotal = 42 } = {}) {
   const originalFetch = global.fetch;
-  let call = 0;
+  const calls = [];
   global.fetch = async (url) => {
-    call += 1;
-    const body = url.includes('status=active') ? activeSnapshot : pages[call - 1] || pages[pages.length - 1];
-    return { ok: true, json: async () => body };
+    calls.push(url);
+    if (url.includes('status=active')) {
+      return { ok: true, json: async () => ({ meta: { total_items: activeTotal } }) };
+    }
+    const pageNum = Number(new URL(url).searchParams.get('page'));
+    const data = pagesByNumber[pageNum] || [];
+    return { ok: true, json: async () => ({ meta: { total_pages: totalPages }, data }) };
   };
+  return { originalFetch, calls };
+}
+
+test('getSubscriberGrowth: paginates through every page (fetched concurrently) and counts subscribers created in range', async () => {
+  const pagesByNumber = {
+    1: [
+      { id: '1', created_at: '2026-07-10T00:00:00.000Z' }, // in range
+      { id: '2', created_at: '2020-01-01T00:00:00.000Z' }, // not in range
+    ],
+    2: [{ id: '3', created_at: '2026-07-20T00:00:00.000Z' }], // in range
+  };
+  const { originalFetch, calls } = mockPaginatedSubscribers(pagesByNumber, { totalPages: 2, activeTotal: 42 });
 
   try {
     const result = await getSubscriberGrowth({ startDate: '2026-07-01', endDate: '2026-08-01' });
     assert.equal(result.newSubscriberCount, 2);
     assert.equal(result.currentActiveSubscribers, 42);
     assert.equal(result.truncated, false);
+    // page 1, page 2, and the active-count snapshot -- three requests total.
+    assert.equal(calls.length, 3);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('getSubscriberGrowth: batches concurrent requests across more pages than the concurrency limit', async () => {
+  // 12 pages total -- more than PAGE_FETCH_CONCURRENCY (10), so this only
+  // passes if the batching loop correctly handles a second, smaller batch.
+  const pagesByNumber = {};
+  for (let page = 1; page <= 12; page += 1) {
+    pagesByNumber[page] = [{ id: `p${page}`, created_at: '2026-07-15T00:00:00.000Z' }]; // all in range
+  }
+  const { originalFetch } = mockPaginatedSubscribers(pagesByNumber, { totalPages: 12 });
+
+  try {
+    const result = await getSubscriberGrowth({ startDate: '2026-07-01', endDate: '2026-08-01' });
+    assert.equal(result.newSubscriberCount, 12);
+    assert.equal(result.truncated, false);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('getSubscriberGrowth: marks truncated and stops at MAX_PAGES when the list is very large', async () => {
+  const pagesByNumber = { 1: [{ id: '1', created_at: '2026-07-15T00:00:00.000Z' }] };
+  const { originalFetch } = mockPaginatedSubscribers(pagesByNumber, { totalPages: 500 });
+
+  try {
+    const result = await getSubscriberGrowth({ startDate: '2026-07-01', endDate: '2026-08-01' });
+    assert.equal(result.truncated, true);
   } finally {
     global.fetch = originalFetch;
   }
