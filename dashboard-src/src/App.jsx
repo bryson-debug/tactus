@@ -36,6 +36,10 @@ function formatAmount(amount, currency) {
   }).format(amount || 0);
 }
 
+function formatCount(n) {
+  return new Intl.NumberFormat('en-US').format(n || 0);
+}
+
 function SourceCard({ title, result, render }) {
   const isQuickbooksNotConnected = !result?.ok && /not connected yet/i.test(result?.error || '');
 
@@ -411,6 +415,42 @@ export default function App() {
             )}
           />
           <MrrCard mrr={summary?.mrr} />
+          <SourceCard
+            title="Email list growth"
+            result={summary?.flodesk?.growth}
+            render={(data) => (
+              <>
+                <div className="card__value">+{formatCount(data.newSubscriberCount)}</div>
+                <div className="card__subvalue">
+                  New subscribers this period
+                  {data.currentActiveSubscribers != null
+                    ? ` · ${formatCount(data.currentActiveSubscribers)} active overall`
+                    : ''}
+                  {data.truncated
+                    ? ' · list is large enough that this count may be incomplete, see README'
+                    : ''}
+                </div>
+              </>
+            )}
+          />
+          <SourceCard
+            title="Email list churn"
+            result={summary?.flodesk?.churn}
+            render={(data) => (
+              <>
+                <div className="card__value">
+                  {data.periodFullyTracked ? `-${formatCount(data.unsubscribedCount)}` : '—'}
+                </div>
+                <div className="card__subvalue">
+                  {data.periodFullyTracked
+                    ? 'Unsubscribes this period'
+                    : data.trackedSince
+                      ? `Churn tracking started ${new Date(data.trackedSince).toLocaleDateString()} -- not the full selected period yet`
+                      : 'Churn tracking not set up yet, see README'}
+                </div>
+              </>
+            )}
+          />
         </div>
       )}
 

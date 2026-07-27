@@ -4,9 +4,10 @@ Internal financial + activity dashboard for Tarbet Education Network. Phase 1
 combines **Stripe** and **PayPal** (revenue, plus MRR for the EDGE
 subscription), **QuickBooks Online** (P&L / cash flow, plus payments
 received -- revenue collected outside Stripe/PayPal, e.g. check or bank
-transfer) into one view. Meta Business Suite, Flodesk, and Vimeo are
-deferred to Phase 2. A Slack digest is deferred but the data layer
-(`lib/metrics.js`) is built so adding it later is additive, not a rewrite.
+transfer), and **Flodesk** (email list growth + churn) into one view. Meta
+Business Suite and Vimeo are deferred to Phase 2. A Slack digest is deferred
+but the data layer (`lib/metrics.js`) is built so adding it later is
+additive, not a rewrite.
 
 ThriveCart was evaluated and dropped as a data source: it has no API to
 list/query historical orders (only single-customer lookups and a product
@@ -29,7 +30,13 @@ lib/metrics.js  ← the reusable seam. Pure function, no HTTP concerns.
       ├─ lib/stripe-client.js   (revenue + exact EDGE MRR)
       ├─ lib/paypal-client.js   (revenue + approximate EDGE MRR)
       ├─ lib/quickbooks-client.js (+ lib/quickbooks-token-store.js → Supabase)
-      └─ lib/cashflow-sheet-client.js (Google Sheets API, service account)
+      ├─ lib/cashflow-sheet-client.js (Google Sheets API, service account)
+      └─ lib/flodesk-client.js (+ lib/flodesk-webhook-store.js → Supabase)
+
+api/flodesk/webhook.js  ← NOT part of the request above -- called by Flodesk
+      itself whenever a subscriber unsubscribes, logged to Supabase for
+      lib/flodesk-client.js to read back as churn. See "Email list growth +
+      churn" below for why this exists.
 ```
 
 Each source is fetched independently (`Promise.all` + per-source try/catch in
@@ -111,6 +118,54 @@ shows "Cash flow sheet is missing an expected row," the row labels in the
 live sheet don't exactly match the ones above and `lib/cashflow-sheet-client.js`
 will need a small adjustment.
 
+## Email list growth + churn (Flodesk)
+
+Two cards, both scoped to the dashboard's selected period like the revenue
+cards (not a fixed snapshot like MRR or the cash flow sheet).
+
+**Growth** counts subscribers whose `created_at` falls inside the selected
+period. Flodesk's `GET /subscribers` endpoint has no date-range filter and
+no documented sort order, so `lib/flodesk-client.js` walks every page and
+filters client-side -- correct for any historical period, capped at 20,000
+subscribers (200 pages) as a safety bound against an unexpectedly huge list
+running past Vercel's function time limit. The card also shows the current
+total active-subscriber count for context (a single cheap request, not part
+of the pagination walk).
+
+**Churn is architecturally different**, and this is worth understanding
+before it looks "broken": Flodesk's REST API has no `unsubscribed_at` field
+anywhere and no historical event log, so there is **no way to ask "how many
+people unsubscribed in March" after the fact** -- confirmed directly against
+Flodesk's own API reference (developers.flodesk.com), not guessed. The only
+way to get this number is to capture `subscriber.unsubscribed` webhook
+events as they happen and log them ourselves (`flodesk_unsubscribe_events`
+table in Supabase, written by `api/flodesk/webhook.js`, read back by
+`lib/flodesk-client.js`). That means **churn data only exists from the
+moment the webhook is registered onward -- there is no historical
+backfill.** For any period that started before that registration date, the
+card shows "Churn tracking started &lt;date&gt; -- not the full selected
+period yet" instead of a number, so a partial (and therefore misleadingly
+low) count is never shown as if it were complete.
+
+Flodesk's webhooks aren't signed (no HMAC secret in their webhook-creation
+response), so `api/flodesk/webhook.js` is secured with a shared-secret
+token in the URL's query string instead of gate-based auth.
+
+**Setup:**
+1. Generate an API key in Flodesk: **My Account → Integrations → API keys**
+   (requires a paid Flodesk plan -- not available on trial/free). Set
+   `FLODESK_API_KEY`.
+2. Make up a random secret string for `FLODESK_WEBHOOK_TOKEN` (a password
+   manager's "generate password" feature works fine).
+3. Set `FLODESK_WEBHOOK_URL` to
+   `https://<your-vercel-domain>/api/flodesk/webhook?token=<same value as FLODESK_WEBHOOK_TOKEN>`.
+4. Deploy, then visit `/api/flodesk/setup-webhook` once as an admin. This
+   registers the webhook with Flodesk via `POST /webhooks`. You should see
+   "Flodesk webhook registered successfully." This is a one-time step, same
+   pattern as QuickBooks's `/api/quickbooks/oauth-start`.
+5. From that point forward, churn accumulates. There's nothing to
+   backfill -- it just starts working.
+
 ## Theming
 
 Light mode (white surfaces, brand teal `#12a99f` as the accent) is the
@@ -129,8 +184,8 @@ the full rationale.
 3. `npm run dev` (runs `vercel dev`).
 4. `npm test` runs the pure-logic unit tests (period math, QuickBooks report
    parsing, Stripe multi-account parsing, MRR normalization, PayPal text
-   matching, cash flow sheet parsing) — no network calls, no credentials
-   required.
+   matching, cash flow sheet parsing, Flodesk growth/churn logic) — no
+   network calls, no credentials required.
 
 ## Credentials & one-time setup
 
@@ -169,6 +224,10 @@ the full rationale.
       flow projector" above). Set `GOOGLE_SERVICE_ACCOUNT_KEY_BASE64`, and
       share the "Revenue
       Projections" sheet with that service account's email as a Viewer.
+- [ ] **Flodesk** — for email list growth + churn (see "Email list growth +
+      churn" above). Set `FLODESK_API_KEY` (requires a paid Flodesk plan),
+      `FLODESK_WEBHOOK_TOKEN`, and `FLODESK_WEBHOOK_URL`, then visit
+      `/api/flodesk/setup-webhook` once to register the webhook.
 
 ## Access control
 
@@ -180,13 +239,18 @@ protection, which needs a paid Pro plan.
 
 Instead, `lib/dashboard-auth.js` implements a simple app-level password gate:
 every API route that returns real data (`api/metrics/summary.js`,
-`api/quickbooks/oauth-start.js`) checks for a session cookie matching
-`DASHBOARD_PASSWORD` and 401s otherwise. `api/login.js` serves a bare
-password form and sets that cookie on success. The static frontend shell
-itself isn't gated (it has no data embedded in it), so an unauthenticated
-visitor sees the page but every card fails to load until they sign in —
-the dashboard UI detects a 401 and shows a "Sign in" link instead of raw
-errors.
+`api/quickbooks/oauth-start.js`, `api/flodesk/setup-webhook.js`) checks for
+a session cookie matching `DASHBOARD_PASSWORD` and 401s otherwise.
+`api/login.js` serves a bare password form and sets that cookie on success.
+The static frontend shell itself isn't gated (it has no data embedded in
+it), so an unauthenticated visitor sees the page but every card fails to
+load until they sign in — the dashboard UI detects a 401 and shows a
+"Sign in" link instead of raw errors.
+
+`api/flodesk/webhook.js` is the one exception -- it's called by Flodesk
+itself, not a signed-in browser, so it can't use the password cookie. It's
+secured instead by a shared-secret token in its URL's query string (see
+"Email list growth + churn" above).
 
 This is a deliberate simplification: the session cookie is just the
 password itself (httpOnly + Secure + SameSite=Lax), not a signed/opaque
