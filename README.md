@@ -34,9 +34,9 @@ lib/metrics.js  ← the reusable seam. Pure function, no HTTP concerns.
       └─ lib/flodesk-client.js (+ lib/flodesk-webhook-store.js → Supabase)
 
 api/flodesk/webhook.js  ← NOT part of the request above -- called by Flodesk
-      itself whenever a subscriber unsubscribes, logged to Supabase for
-      lib/flodesk-client.js to read back as churn. See "Email list growth +
-      churn" below for why this exists.
+      itself whenever a subscriber joins or unsubscribes, logged to Supabase
+      for lib/flodesk-client.js to read back as growth/churn. See "Email
+      list growth + churn" below for why this exists.
 ```
 
 Each source is fetched independently (`Promise.all` + per-source try/catch in
@@ -121,38 +121,38 @@ will need a small adjustment.
 ## Email list growth + churn (Flodesk)
 
 Two cards, both scoped to the dashboard's selected period like the revenue
-cards (not a fixed snapshot like MRR or the cash flow sheet).
+cards (not a fixed snapshot like MRR or the cash flow sheet). Both are
+computed the same way, from our own webhook event log -- **not** by asking
+Flodesk's API for the answer directly, because it can't give one:
 
-**Growth** counts subscribers whose `created_at` falls inside the selected
-period. Flodesk's `GET /subscribers` endpoint has no date-range filter and
-no documented sort order, so `lib/flodesk-client.js` walks every page and
-filters client-side -- correct for any historical period. Pages are fetched
-concurrently in small batches (`PAGE_FETCH_CONCURRENCY`, currently 10 at a
-time) rather than one at a time: an earlier version fetched sequentially and
-that hit a real production bug -- Vercel's Hobby plan hard-caps a function
-at 10 seconds (not configurable higher without upgrading), and sequential
-pagination for even a few hundred subscribers didn't fit, so every dashboard
-load 504'd. Capped at 5,000 subscribers (`MAX_PAGES` × 100 per page) as a
-safety bound against an unusually large list still running past that same
-10-second limit or Flodesk's 100 req/min rate limit -- past that, the card
-notes the count may be incomplete. The card also shows the current total
-active-subscriber count for context (a single cheap request, not part of
-the pagination walk).
+- Flodesk's `GET /subscribers` endpoint has no `created_at` date-range
+  filter, so there's no way to ask "how many people joined this month" in
+  one request. The obvious workaround -- pull the whole subscriber list and
+  filter client-side -- was the first version of this feature, and it
+  caused a real production outage: Vercel's Hobby plan hard-caps a function
+  at 10 seconds (not configurable higher without upgrading), and even
+  fetching pages concurrently couldn't pull a ~24,000-subscriber account's
+  full list in time, so `/api/metrics/summary` 504'd and took down every
+  card on the dashboard, not just this one.
+- Flodesk's REST API has no `unsubscribed_at` field anywhere and no
+  historical event log at all, so there is no way to ask "how many people
+  unsubscribed in March" after the fact under any circumstances --
+  confirmed directly against Flodesk's own API reference
+  (developers.flodesk.com), not guessed.
 
-**Churn is architecturally different**, and this is worth understanding
-before it looks "broken": Flodesk's REST API has no `unsubscribed_at` field
-anywhere and no historical event log, so there is **no way to ask "how many
-people unsubscribed in March" after the fact** -- confirmed directly against
-Flodesk's own API reference (developers.flodesk.com), not guessed. The only
-way to get this number is to capture `subscriber.unsubscribed` webhook
-events as they happen and log them ourselves (`flodesk_unsubscribe_events`
-table in Supabase, written by `api/flodesk/webhook.js`, read back by
-`lib/flodesk-client.js`). That means **churn data only exists from the
-moment the webhook is registered onward -- there is no historical
-backfill.** For any period that started before that registration date, the
-card shows "Churn tracking started &lt;date&gt; -- not the full selected
-period yet" instead of a number, so a partial (and therefore misleadingly
-low) count is never shown as if it were complete.
+Given both, the only approach that actually works is to **capture
+`subscriber.created` and `subscriber.unsubscribed` webhook events as they
+happen** and log them ourselves (`flodesk_subscriber_events` table in
+Supabase, written by `api/flodesk/webhook.js`, read back by
+`lib/flodesk-client.js`). That means **both growth and churn only exist
+from the moment the webhook is registered onward -- there is no historical
+backfill for either.** For any period that started before that registration
+date, the card shows "Tracking started &lt;date&gt; -- not the full
+selected period yet" instead of a number, so a partial (and therefore
+misleadingly low) count is never shown as if it were complete. The growth
+card additionally shows the current total active-subscriber count for
+context -- a single cheap request (`meta.total_items` on a 1-per-page
+query), not a full-list pull.
 
 Flodesk's webhooks aren't signed (no HMAC secret in their webhook-creation
 response), so `api/flodesk/webhook.js` is secured with a shared-secret
@@ -167,9 +167,11 @@ token in the URL's query string instead of gate-based auth.
 3. Set `FLODESK_WEBHOOK_URL` to
    `https://<your-vercel-domain>/api/flodesk/webhook?token=<same value as FLODESK_WEBHOOK_TOKEN>`.
 4. Deploy, then visit `/api/flodesk/setup-webhook` once as an admin. This
-   registers the webhook with Flodesk via `POST /webhooks`. You should see
-   "Flodesk webhook registered successfully." This is a one-time step, same
-   pattern as QuickBooks's `/api/quickbooks/oauth-start`.
+   registers both webhook events with Flodesk via `POST /webhooks` (or
+   updates the existing registration via `PUT` if you've run this before --
+   safe to re-run, it won't create a duplicate). You should see "Flodesk
+   webhook registered successfully." This is a one-time step, same pattern
+   as QuickBooks's `/api/quickbooks/oauth-start`.
 5. From that point forward, churn accumulates. There's nothing to
    backfill -- it just starts working.
 

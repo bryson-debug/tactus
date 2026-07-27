@@ -420,14 +420,17 @@ export default function App() {
             result={summary?.flodesk?.growth}
             render={(data) => (
               <>
-                <div className="card__value">+{formatCount(data.newSubscriberCount)}</div>
+                <div className="card__value">
+                  {data.periodFullyTracked ? `+${formatCount(data.newSubscriberCount)}` : '—'}
+                </div>
                 <div className="card__subvalue">
-                  New subscribers this period
+                  {data.periodFullyTracked
+                    ? 'New subscribers this period'
+                    : data.trackedSince
+                      ? `Tracking started ${new Date(data.trackedSince).toLocaleDateString()} -- not the full selected period yet`
+                      : 'No new subscribers tracked yet -- check the webhook is registered, see README'}
                   {data.currentActiveSubscribers != null
                     ? ` · ${formatCount(data.currentActiveSubscribers)} active overall`
-                    : ''}
-                  {data.truncated
-                    ? ' · list is large enough that this count may be incomplete, see README'
                     : ''}
                 </div>
               </>
@@ -445,8 +448,8 @@ export default function App() {
                   {data.periodFullyTracked
                     ? 'Unsubscribes this period'
                     : data.trackedSince
-                      ? `Churn tracking started ${new Date(data.trackedSince).toLocaleDateString()} -- not the full selected period yet`
-                      : 'Churn tracking not set up yet, see README'}
+                      ? `Tracking started ${new Date(data.trackedSince).toLocaleDateString()} -- not the full selected period yet`
+                      : 'No unsubscribes tracked yet -- check the webhook is registered, see README'}
                 </div>
               </>
             )}
