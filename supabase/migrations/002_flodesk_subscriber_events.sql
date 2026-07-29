@@ -19,3 +19,11 @@ create table if not exists flodesk_subscriber_events (
 
 create index if not exists flodesk_subscriber_events_type_time_idx
   on flodesk_subscriber_events (event_type, event_time);
+
+-- Flagged by Supabase's security advisor: RLS was disabled, exposing this
+-- table via the public REST API to anyone with the project URL. The app
+-- only ever reads/writes it via the service_role key
+-- (lib/supabase-client.js), which bypasses RLS regardless of policies -- so
+-- enabling RLS with no policies blocks all other API access without
+-- breaking the app itself.
+alter table flodesk_subscriber_events enable row level security;
